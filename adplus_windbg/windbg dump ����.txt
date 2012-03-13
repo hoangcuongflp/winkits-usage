@@ -1,0 +1,328 @@
+Windbg dump 方法
+分类： 调试技术 2008-05-13 13:50 4299人阅读 评论(3) 收藏 举报
+
+如何手工抓取dump文件
+在生产环境下进行故障诊断时，为了不终止正在运行的服务或应用程序，有两种方式可以对正在运行的服务或应用程序的进程进行分析和调试。
+
+首先一种比较直观简洁的方式就是用WinDbg等调试器直接attach到需要调试的进程，调试完毕之后再detach即可。但是这种方式有个缺点就是执行debugger命令时必须先break这个进程，执行完debug命令之后又得赶紧F5让他继续运行，因为被你break住的时候意味着整个进程也已经被你挂起。另外也经常会由于First Chance Excetpion而自动break，你得时刻留意避免长时间break整个进程。所以这样的调试方式对时间是个很大的考验，往往没有充裕的时间来做仔细分析。
+
+另一种方式则是在出现问题的时候，比如CPU持续长时间100%，内存突然暴涨等非正常情况下，通过对服务进程snapshot抓取一个dump文件，完成dump之后先deatch，让进程继续运行。然后用windbg等工具来分析这个抓取到的dump文件。
+
+那么如何在不终止进程的情况下抓取dump文件呢？Debugging Tools for Windows里提供了一个非常好的工具，adplus.vbs。从名字可以看出，实际上是一个vb脚本，只是对cdb调试器作的一个包装脚本。
+
+其路径与Debugging Tools for Windows的安装路径相同，使用的方法也很简单，如下所示:
+
+adplus.vbs -hang -p 1234 -o d:/dump
+
+其中-hang指明使用hang模式，亦即在进程运行过程中附加上去snapshot抓取一个dump文件，完成之后detach。与之对应的是-crash崩溃模式，用户先启动adplus，然后由它启动要监控的程序，在出现异常崩溃时自动生成dump文件，或者通过Ctrl-C人为发出抓取指令。但是-crash模式在抓取完成之后，被监控的进程就必须终止。因此我们在这里只选用-hang模式。
+
+-p是要调试的进程ID，比如ASP.NET应用线程池，在Win2003下就是w3wp.exe
+
+-o 指定要output的dump文件路径。
+
+另外，与adplus类似的，有个UserDump工具，但是抓取用户模式的进程，而adplus则是内核模式和用户模式两者皆可。
+
+而总所周至的Dr. Waston，则会在进程崩溃之后的自动时候抓取dump文件，一样可以用于windbg等调试器来事后分析程序崩溃时的状态。
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+0:000> !dumpheap -stat
+No export dumpheap found
+======解决方法：
+.load clr20/sos.dll，你要先执行的。sos.dll在默认的c:/windows/microsoft.net/framework/v2.....下面，你复制到c:/program files/debugging tools for windows下面的clr20目录下面（clr20是你手工创建的）
+ ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+    
+  在.NET下开发时，最基本的调试方法就是使用Visual Studio的单步调试。但是对于一些特殊情况，特别是涉及到CLR内部的时候使用这种方式就达不到目的了。
+  如果要查看运行时内存使用情况，IL代码，CLR信息等可以使用以下两种方式：
+  1、使用VS2005 + sos.dll
+  2、使用Windbg + sos.dll
+  第二种方式功能更加强大，下面我就通过实际操作展示一下怎么使用这种方法得到运行时ArrayList内部的值。
+  有人可能会说：我直接用Visual Studio的单步调试岂不是更快？当然，这个只是一个演示，通过这个演示是为以后的高级调试打下基础
+  
+  在操作之前，先熟悉一下基本知识：
+  A、使用VS2005 + sos.dll调试
+  1、需要在项目->属性->调试-〉启用非托管代码调试
+  2、打开调试-〉窗口-〉即时
+  3、在即时窗口中输入 !load sos 加载调试模块
+  4、输入其它调试语句
+  
+  B、使用Windbg + sos.dll
+  1、去微软的网站下载最新的Windbg
+  2、打开Windbg在File-〉Symbol File Path ...窗口中输入 srv*c:/symbols*http://msdl.microsoft.com/download/symbols
+  3、运行需要调试的程序，然后在Windbg中File-〉Attach to Process中选择刚才运行的程序
+  4、在出现的Command窗口中就可以输入调试语句
+  5、常用调试语句：
+   lm //查看加载了哪些模块
+   .load C:/WINDOWS/Microsoft.NET/Framework/v2.0.50727/sos.dll //加载调试模块
+   ld TestClass //加载调试符号
+   !name2ee TestClass.exe TestClass.Program.test //显示test方法相关的地址
+   !dumpmt -md 00976d48 //得到类的成员函数详细信息
+   !dumpil 00973028 // 显示这个方法被编译器编译之后的IL代码
+   !dumpheap -stat //该命令显示程序中所有对象的统计信息，显示的大小是对象本身的大小，不包括对象里面值的大小
+   !dumpheap -mt 790fcb30 //该命令显示MethodTable 790fcb30的详细信息
+   !gcroot 012919b8 //来显示一个实例的所属关系
+   !dumpobj(do) 012a3904 //显示一个对象的具体内容，看对象里面有什么，值是什么
+   !ObjSize 012a1ba4 //对象实际在内存中的大小
+   !eeheap -gc //查看托管堆的情况(包括大小)
+   !DumpArray //查看数组信息
+   下面就来看看具体的调试步骤：
+  1、我们的测试代码
+  
+  
+  namespace TestClass
+  {
+   class Program
+   {
+   [STAThread]
+   static void Main(string[] args)
+   {
+   ArrayList list = new ArrayList();
+   list.Add("aaaa");
+   list.Add("bbbb");
+   Console.ReadLine();
+   }
+   }
+  }很简单，就是一个ArrayList
+  
+  运行这个程序(开始执行，不调试)，然后进入Windbg，Attach到这个进程
+  
+  2、查看所有堆栈信息
+  0:004> !dumpheap -stat
+   MT Count TotalSize Class Name
+  7910062c 1 12 System.Security.Permissions.SecurityPermission
+  7918e284 1 16 System.IO.TextReader+SyncTextReader
+  79102d10 1 20 Microsoft.Win32.SafeHandles.SafeFileMappingHandle
+  79102cb4 1 20 Microsoft.Win32.SafeHandles.SafeViewOfFileHandle
+  79101d30 1 20 System.Text.InternalEncoderBestFitFallback
+  79100a7c 1 20 Microsoft.Win32.SafeHandles.SafeFileHandle
+  79105cd4 1 24 System.Collections.ArrayList
+  ......
+  7912ad90 11 9036 System.Object[]
+  790fcb30 2083 131492 System.String
+  Total 2202 objects
+  除了我们的ArrayList外，还有很多其它的系统信息，先不用管它
+  
+  3、查看我们的ArrayList的信息
+  0:004> !dumpheap -mt 79105cd4
+   Address MT Size
+  012a1b88 79105cd4 24
+  total 1 objects
+  Statistics:
+   MT Count TotalSize Class Name
+  79105cd4 1 24 System.Collections.ArrayList
+  Total 1 objects
+  
+  4、查看对应地址内部实际的值
+  0:004> !do 012a1b88
+  Name: System.Collections.ArrayList
+  MethodTable: 79105cd4
+  EEClass: 79105c28
+  Size: 24(0x18) bytes
+   (C:/WINDOWS/assembly/GAC_32/mscorlib/2.0.0.0__b77a5c561934e089/mscorlib.dll)
+  Fields:
+   MT Field Offset Type VT Attr Value Name
+  7912ad90 40008df 4 System.Object[] 0 instance 012a1bb0 _items
+  791018e0 40008e0 c System.Int32 1 instance 2 _size
+  791018e0 40008e1 10 System.Int32 1 instance 2 _version
+  790fc35c 40008e2 8 System.Object 0 instance 00000000 _syncRoot
+  7912ad90 40008e3 1c0 System.Object[] 0 shared static emptyArray
+   >> Domain:Value 00149c58:012a1ba0 <<
+  可以看到ArrayList的大小为2，具体的值保存在地址012a1bb0中，是一个System.Object[]类型的数组
+  
+  5、查看数组信息
+  0:004> !DumpArray 012a1bb0
+  Name: System.Object[]
+  MethodTable: 7912ad90
+  EEClass: 7912b304
+  Size: 32(0x20) bytes
+  Array: Rank 1, Number of elements 4, Type CLASS
+  Element Methodtable: 790fc35c
+  [0] 012a1b50
+  [1] 012a1b6c
+  [2] null
+  [3] null
+  
+  6、查看数组内对象的值
+  0:004> !do 012a1b50
+  Name: System.String
+  MethodTable: 790fcb30
+  EEClass: 790fca90
+  Size: 26(0x1a) bytes
+   (C:/WINDOWS/assembly/GAC_32/mscorlib/2.0.0.0__b77a5c561934e089/mscorlib.dll)
+  String: aaaa
+  Fields:
+   MT Field Offset Type VT Attr Value Name
+  791018e0 4000096 4 System.Int32 1 instance 5 m_arrayLength
+  791018e0 4000097 8 System.Int32 1 instance 4 m_stringLength
+  790fe534 4000098 c System.Char 1 instance 61 m_firstChar
+  790fcb30 4000099 10 System.String 0 shared static Empty
+   >> Domain:Value 00149c58:790d81bc <<
+  7912b1d8 400009a 14 System.Char[] 0 shared static WhitespaceChars
+   >> Domain:Value 00149c58:012a16f0 << 
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+
+windbg使用小总结
+【抓dump】
+1、一般抓法
+adplus -hang -p 3230 -quiet 抓3230 pid进程，hang模式，相当于把那个进程暂停住，取内存快照
+adplus -crash -pn w3wp -quiet 抓w3wp进程，crash模式，当那个进程崩溃结束的时候自动抓取当时的内存
+adplus -hang -iis -quiet 抓IIS相关进程，包括其上host的web应用，以及iis自身
+2、抓window服务
+http://support.microsoft.com/kb/824344/zh-cn
+3、远程抓
+http://blog.joycode.com/tingwang/archive/2006/08/11/79763.aspx
+4、抓蓝屏和死机的dump
+电脑无故重启或者蓝屏会在C:/WINDOWS/Minidump/下保存一个minidump，但是这个minidump可用的命令很少，一般只打!analyze –v看到是哪个进程引起的，还有相关的驱动模块就基本定位问题了。
+5、IIS回收的时候抓
+http://blog.yesky.com/blog/omakey/archive/2006/12/17/1618015.html
+6、计划任务抓
+比如一个进程起来后不知道它什么时候会意外崩溃，可以在计划任务里用crash里抓，当那个进程意外终止的时候，cdb可以直接附加上去，抓取当时的dump，如果要抓一些会自动重启的进程，而且要抓每次重启前的dump，可以参考附录里一节。
+
+【常用命令】
+1、先path C:/WINDOWS/Microsoft.NET/Framework/v2.0.50727，把.net路径设置为path环境变量，一遍在windbg里可以直接.load sos，而不必.load C:/WINDOWS/Microsoft.NET/Framework/v2.0.50727/sos.dll
+2、ld demo，加载你程序的pdb文件，调试.net程序一般要把kernel32和mscorwks的符号加载上，关于这两个东西大家可以查资料，尤其是后者有哪些函数可以多了解一些。
+3、在windbg的file/symbol file path对话框里输入以下文字，以便自动加载和下载符号
+C:/WINDOWS/Symbols;d:/Program Files/Microsoft Visual Studio 8/SDK/v2.0/symbols;.sympath SRV*d:/localsymbols*http://msdl.microsoft.com/download/symbols
+其中有windows、.net2.0和自动从网上下载的调试符号，注意根据自己的情况适当修改目录
+
+【调试死锁】
+1、!syncblk，查看哪些线程拿到了锁
+2、~67e!clrstack 跳到某个拿到锁的线程看它正在干什么操作，迟迟不肯释放锁
+3、!runaway 查看这个占有锁的线程运行了多长时间。
+4、~*e!clrstack查看所有线程的托管堆栈，看看哪些是正在等待锁的，比如hang在System.Threading.Monitor.Enter(System.Object)
+5、~136s选择该线程，显示如下
+0:000> ~136s eax=00005763 ebx=08deeb5c ecx=03eff0d4 edx=5570ab69 esi=08deeb5c edi=7ffd6000 eip=7c95ed54 esp=08deeb10 ebp=08deebb8 iopl=0 nv up ei pl zr na pe nc cs=001b ss=0023 ds=0023 es=0023 fs=003b gs=0000 efl=00000246 ntdll!KiFastSystemCallRet: 7c95ed54 c3 ret
+找到ecx寄存器的值，复制后ctrl+f，向上查找，会找到!syncblk的地方，如下
+0:000> !syncblk Index SyncBlock MonitorHeld Recursion Owning Thread Info SyncBlock Owner 1906 03ee4be4 5 1 03ee8f88 22c8 67 185e2ef0 System.Object 5390 052ca39c 3 1 05292b30 1dd4 49 1060d3ac System.Object 9372 0530702c 15 1 0012d3a8 1aa8 80 185e7704 System.Object 11428 03eff0d4 35 1 053b8fa8 169c 120 166acd98 System.Object 15278 0531c6b4 61 1 06bc1430 26d8 86 1a5bea88 System.Object
+可以看到136线程等待的锁被120号线程占着不放（格式有点乱，凑合看），
+6、有时候通过ecx寄存器找锁不是很确定，可以用~* kb来把所有线程堆栈打出来，然后根据!syncblk出来的同步快的值去搜索大概有多少个线程在等那个锁。因为同样是等待锁，可等的状态不一样，有的在Q里，有的锁已经升级，有的去尝试去拿锁了，所以不一定当时ecx寄存器指向那块内存，具体如何找到某个正在等待锁的线程等待的锁的内存地址，以及它正等待的这个锁被哪个线程拿着，我还没琢磨出规律来，但一般情况下，如果有其它同步对象的话，更难查。.net里用我上面说的几步就能查出锁的问题了。
+
+
+【内存泄漏】
+1、!dumpheap -stat看看哪些对象个数最多，占内存最大，
+2、找到某个格式比较多的对象，可以看它的方法表，然后用!dumpheap -mt 66398fa4去随机找几个对象的地址
+3、用!do 1e5a22bc命令去查看几个对象的状态，属性的值等，看看正常不正常
+4、用!gcroot -nostacks 1e5a22bc去查看几个对象的根正常不正常，如果有些对象的根不是自己预先设计的那样，很可能被自己没想到的对象强引用了，所以GC无法回收它，就泄漏了。
+【CPU百分百】
+主要用几个计数器和!runaway命令，具体见以下链接
+http://www.cnblogs.com/onlytianc ... 7/06/03/769307.html
+【线程池耗尽】
+!threadpool 能看到完成端口，线程池工作线程和timer回调各占线程池的情况。
+【其它】
+1、!eestack -short -ee查看所有重要(获取锁的，托管的，停止并允许回收的)线程的dumpstack，差不多相当于~*e!dumpstack
+2、.time 可以看到进程跑了多少时间
+3、!dso 查看当前线程里有哪些对象，分析内存泄漏问题也许会用到
+【小结】
+要想很好的用windbg排查.net问题，首先要了解一些clr宿主的基础知识，以及IL的一些基础，还有简单的寄存器和汇编尝试，再就是有个好的思路，最后就是经验和对代码逻辑的理解。
+
+
+【附录：写了一个自动抓dump的工具，可在程序异常退出的时候抓dump】
+【使用方法】
+1、先在cmd下运行以下命令确保计划任务开着
+net start "task scheduler"
+2、执行以下命令安排自动抓包
+at 13:27 d:/myapp/autodump/processmon.exe
+其中计划启动的时间和自动抓包的程序路径要根据情况设置，计划启动之前当前用户一定要注销。
+【相关配置】
+<appSettings>
+  <add key="adplusPath" value="D:/MyApp/Debugging/adplus.vbs"/><!--adplus的路径-->
+  <add key="ProcessName" value="w3wp"/><!--要抓dump的进程的名字，可用部分名字，不用完整的-->
+</appSettings>
+
+
+【源码】
+
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+
+namespace ProcessMon
+{
+    class Program
+    {
+        static readonly List<int> _dumpPIDs = new List<int>();
+        private static readonly string _processName = System.Configuration.ConfigurationManager.AppSettings["ProcessName"];
+        private static readonly string _adplusPath = System.Configuration.ConfigurationManager.AppSettings["adplusPath"];
+        static void Main(string[] args)
+        {
+            while(true)
+            {
+                Console.WriteLine("..");
+                ThreadProc();
+                Thread.Sleep(10000);
+            }
+        }
+
+        private static void ThreadProc()
+        {
+            foreach(Process vProcess in Process.GetProcesses())
+            {
+                try
+                {             
+                    string  processName  =  vProcess.ProcessName.ToLower();
+                    if (processName.IndexOf(_processName) >= 0)
+                    {
+                        Console.WriteLine("{0}-{1}", vProcess.ProcessName, vProcess.Id);
+
+                        if (_dumpPIDs.Contains(vProcess.Id))
+                            continue;
+                        _dumpPIDs.Add(vProcess.Id);
+     
+                        DumpProcessDeg d = DumpProcess;
+                        d.BeginInvoke(vProcess.Id, null, null);
+                        DumpProcess(vProcess.Id);
+                    }
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine(ex);
+                }
+            }
+        }
+
+        private delegate void DumpProcessDeg(int pid);
+        static  void  DumpProcess(int pid)
+        {
+            ProcessStartInfo  Info  =  new  System.Diagnostics.ProcessStartInfo();
+            Info.FileName = _adplusPath;
+            Info.Arguments = string.Format("-crash -p {0} -quiet",pid);
+            Info.WorkingDirectory  =  "C://";
+            Process  Proc  ;
+            try
+            {
+                Proc  =  Process.Start(Info);
+            }
+            catch(System.ComponentModel.Win32Exception  e)
+            {
+                Console.WriteLine("系统找不到指定的程序文件。/r{0}",  e);
+                return;
+            }
+            Proc.EnableRaisingEvents = true;
+            Console.WriteLine("外部程序的开始执行时间：{0}",  Proc.StartTime);
+            Proc.WaitForExit(60000);
+            if(Proc.HasExited  ==  false){
+                Console.WriteLine("由主程序强行终止外部程序的运行！");
+                Proc.Kill();
+            }
+            else{
+                Console.WriteLine("由外部程序正常退出！");
+            }
+            Console.WriteLine("外部程序的结束运行时间：{0}",  Proc.ExitTime);
+            Console.WriteLine("外部程序在结束运行时的返回值：{0}",  Proc.ExitCode);
+        }
+    }
+}
+
+===============
+补充几个命令:
+
+1、!analyze -v ：用于分析挂掉线程的详细情形，错误原因。
+
+2、!locks ：列出全部资源使用情况。
+
+3、!locks -v 0x???????? ：特定地址的死锁分析。
+
+4、!thread 0x????????：特定线程详情。
+
+5、.thread 0x????????：转到某个线程堆栈。

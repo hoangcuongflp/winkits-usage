@@ -1,0 +1,139 @@
+ADPlus
+
+什么是ADPlus?
+
+===============
+
+ADPlus是一个Microsoft Product Support Services (PSS) 的工具, 可以用来排查任何进程或者应用程序的停止响应(hang), 或者崩溃(crash)的错误. 经常地, 你可以使用ADPlus(ADPlus.vbs)作为Microsoft Internet Information Server (IIS) Exception Monitor 和 User Mode Process Dump 的替代工具. 这两个是PSS经常使用的工具, 用来隔离引起进程停止响应或者异常退出的原因.
+
+ 
+
+ADPlus有哪些功能?
+
+===============
+
+ADPlus 是基于控制台的 Microsoft Visual Basic 脚本。
+
+它使 Microsoft CDB 调试程序自动生成包含来自一个或多个进程的调试输出的内存转储和日志文件。
+
+每当 ADPlus 运行时，调试信息（包含调试信息的内存转储和文本文件）都将放置在本地文件系统或远程网络共享目录上的新的、唯一命名的文件夹（例如，C:\Temp \Crash_Mode__Date_01-22-2001__Time_09-41-08AM）中。
+
+此外，ADPlus 创建的每一个文件均具有唯一的名称（例如，PID- 1708__Inetinfo.exe__Date_01-22-2001__Time_09-41-08AM.log），以避免较新的文件覆盖较旧的文件。
+
+ 
+
+ADPlus 可用于任何用户模式进程或服务，例如 Internet 信息服务 (IIS)、Microsoft Transaction Server (MTS) 或 Microsoft COM+ 应用程序。
+
+ 
+
+应该什么时候使用ADPlus?
+
+================
+
+ADPlus 用于向 Microsoft Product Support Services 支持专业人员提供调试信息，支持专业人员需要这些调试信息来确定在复杂环境中出现的问题的原因。
+
+ 
+
+如果您遇到下列问题，应使用 ADPlus 捕获调试信息：
+
+    进程停止响应。
+    进程在单处理器计算机上占用 100% 的 CPU、在双处理器计算机上占用 50% 的 CPU、在四处理器计算机上占用 25% 的 CPU，依此类推。
+    进程崩溃或意外关闭。
+
+到哪里下载ADPlus?
+
+================
+
+ADPlus 随最新的 Microsoft Debugging Tools for Windows 一起提供。要获取最新的 Microsoft Debugging Tools for Windows，请访问下面的 Microsoft 网站：
+
+http://www.microsoft.com/whdc/devtools/debugging/default.mspx
+
+ 
+
+ADPlus是如何工作的?
+
+================
+
+ADPlus 具有两种操作模式：
+
+    “Hang”模式用于解决进程挂起、100% CPU 使用率以及不涉及崩溃的其他问题。当您在挂起模式下使用 ADPlus 时，在运行脚本之前必须等待，直到进程停止响应（与崩溃模式不同，挂起模式不是持久性的）。
+    “Crash”模式用于解决 Dr. Watson 错误导致的崩溃问题，或者用于解决导致程序或服务意外退出的任何其他类型的错误。当您在崩溃模式下使用 ADPlus 时，必须在发生崩溃前启动 ADPlus。可以通过“-notify”开关对 ADPlus 进行配置，以便通知管理员或计算机发生了崩溃。
+
+Hang模式
+在此模式下，ADPlus 在脚本结束运行后立即为在命令行中指定的所有进程生成完全内存转储。创建的每一个 .dmp 文件都会放在包含运行 ADPlus 时的日期/时间戳的文件夹中。每一个文件名都包含进程名、进程 ID，以及运行 ADPlus 时的日期/时间戳。在进程内存正被转储到某一文件时，该进程被冻结。在创建完内存转储文件之后，通过将非侵害性连接/分离与 CDB 调试程序一起使用来恢复进程。
+
+ 
+
+Crash模式
+
+在此模式下，ADPlus 将 CDB 调试程序连接到在命令行中指定的所有进程。ADPlus 自动配置调试程序以监视下列类型的异常：
+
+    无效句柄
+    非法指令
+    整数被零除
+    浮点数被零除
+    整数溢出
+    无效的锁定顺序
+    访问冲突
+    堆栈溢出
+    C++ EH 异常
+    未知异常
+
+ADPlus的命令行开关选项
+
+===============
+
+要使用 ADPlus，您必须为脚本指定一系列命令行开关或参数。ADPlus 至少需要两个开关：
+
+    一个开关指定操作模式
+    另一个开关指定要对其执行操作的目标进程。
+
+下面列出了最常用的开关。您还可以通过运行“ADPlus –help”，或通过阅读调试程序帮助文件 (Debugger.chm) 来查看完整的开关列表。
+
+    -hang
+    此开关将 ADPlus 配置为在挂起模式下运行。您必须将此开关与“-iis”、“-pn”或“-p”开关一起使用。不能将“-hang”与“-crash”开关一起使用。
+    注意：当 ADPlus 在挂起模式下运行时，您必须在进程停止响应或占用很高的 CPU 使用率之后启动 ADPlus。
+    -crash
+    此开关将 ADPlus 配置为在崩溃模式下运行。您必须将此开关与“-iis”、“-pn”或“-p”开关一起使用。不能将“-crash”与“-hang”开关一起使用。
+    注意：当 ADPlus 在崩溃模式下运行时，您必须在进程意外退出或者变得不稳定之前启动 ADPlus。
+    -pn process name
+    “-pn”开关用于指定您希望 ADPlus 分析的进程名。要指定多个进程，请使用多个“-pn process name”开关。例如：
+
+    -pn process1.exe -pn process2.exe
+    -p process ID
+    “-p”开关用于指定您希望 ADPlus 分析的进程的 ID (PID)。要指定多个进程，请使用多个“-p PID”开关。例如：
+
+    -p 1896 -p 1702
+    -iis
+    “-iis” 开关用于调试运行 Internet Information Server (IIS) 4.0 或更高版本的服务器计算机。在将 ADPlus 与“-iis”开关一起使用时，ADPlus 监视所有 IIS 进程内 (Inetinfo.exe) 和进程外 (Mtx.exe/Dllhost.exe) 应用程序。“-iis”开关可以与“-pn”开关或“-p”开关一起使用，也可以单独使用，以分析 IIS 和所有在崩溃模式或挂起模式下运行的 MTS/COM+ 应用程序。
+    如果您尝试分析运行 IIS 3.0 或更低版本的服务器计算机，请使用“-pn”开关并将 Inetinfo.exe 指定为要监视的进程。
+    -notify computer name 或 user name
+    只有当 ADPlus 在崩溃模式下运行时此开关才有效。此开关指示 ADPlus 提醒指定的用户名或计算机名发生了崩溃。当调试程序由于第二次偶然发生的异常从进程分离时，或者当用户按 Ctrl+C 停止调试时，就会通过本地信使服务向远程用户或计算机发送通知。只有正在被调试的计算机上启动了本地信使服务时，才会发送此通知。
+    -quiet
+    此开关指示 ADPlus 不显示所有模式对话框。如果您正在从远程命令外壳程序（其中模式对话框可能导致 ADPlus 无限期地等待用户单击“确定”）内运行 ADPlus，则此开关将非常有用。为保证获得最佳效果，请确保这是传递给 ADPlus.vbs 的第一个开关。
+    -o output directory
+    此开关指示 ADPlus 在哪里放置调试输出文件。如果使用长文件名，则必须用双引号将它们括起来。此外，还可以使用 UNC 路径 (\\server\share)。如果使用 UNC 路径，则 ADPlus 在紧跟您指定的 UNC 路径的下方创建一个新文件夹。根据正在运行 ADPlus 的服务器命名该文件夹（例如，\\server\share\Web1 或 \\server\share\Web2）。如果 ADPlus 在 Web 场中的多台计算机上（这些计算机全都将其输出放置于同一网络共享上）运行，则此开关十分有用。
+
+使用ADPlus的命令举例
+
+====================
+
+为Hang住的情况抓Dump:
+
+    adplus -hang -pn w3wp.exe   为所有的w3wp.exe进程创建内存转储文件.
+
+    adplus -hang -p 1244            为进程ID为1244的进程创建内存转储文件.  
+
+    adplus -hang –IIS                  为所有跟IIS相关的进程(比如w3wp.exe, inetinfo.exe, aspnet_wp.exe 和dllhost.exe)创建内存转储文件.
+
+ 
+
+为Crash的情况抓Dump:
+
+    adplus -crash -pn w3wp.exe   在崩溃的时候为所有的w3wp.exe进程创建内存转储文件
+
+    adplus -crash -p 1244     在进程ID为1244的进程崩溃的时候为它创建内存转储文件
+
+    adplus -crash –IIS           为所有跟IIS相关的进程(比如w3wp.exe, inetinfo.exe, aspnet_wp.exe 和dllhost.exe)创建崩溃时的内存转储文件.
+
+ 
